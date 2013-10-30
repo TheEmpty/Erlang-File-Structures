@@ -4,3 +4,5 @@ ebin/*
 *.dat
 *.eml
 *.iml
+erl_crash.dump
+!.gitkeep
