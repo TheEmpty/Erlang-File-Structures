@@ -1,0 +1,6 @@
+ebin/*
+.idea/*
+*.data
+*.dat
+*.eml
+*.iml
