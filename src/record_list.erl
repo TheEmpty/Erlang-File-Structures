@@ -5,31 +5,33 @@
 -module(record_list).
 -author("Mohammad El-Abid").
 -include("../incl/records.hrl").
--export([create/2, open/1, debugRead/1, addRecord/2, search/3, search/2, deleteRecord/2]).
+-export([create/2, open/1, debug_read/1, add_record/2, search/3, search/2, delete_record/2]).
 
 open(FileName) ->
-  {ok, File} = file:open(FileName, [write, read, binary]),
+  {ok, File} = file:open(FileName, [read, write, binary]),
   {ok, << FreePointer:64/integer >>} = file:read(File, 8),
   {ok, << DataPointer:64/integer >>} = file:read(File, 8),
   [{file, File}, {free_pointer, FreePointer}, {data_pointer, DataPointer}].
 
-readRecs(File) ->
-  Res = (catch info:read(File)),
-  case is_record(Res, info) of
-    true -> [Res] ++ readRecs(File);
-    false -> []
-  end.
 
-debugRead(FileName) ->
+debug_read(FileName) when is_list(FileName) ->
   %fp, dp
   {ok, File} = file:open(FileName, [read, binary]),
   {ok, << FreePointer:64/integer >>} = file:read(File, 8),
   {ok, << DataPointer:64/integer >>} = file:read(File, 8),
 
-  % return truple
-  Recs = readRecs(File),
-  file:close(File),
-  [{free_pointer, FreePointer}, {data_pointer, DataPointer}, {blocks, Recs}].
+  io:fwrite("Free Pointer: ~p, Data Pointer: ~p~n", [FreePointer, DataPointer]),
+  debug_read(File),
+  file:close(File);
+
+debug_read(File) ->
+  Res = (catch info:read(File)),
+  case is_record(Res, info) of
+    true ->
+      io:fwrite("~p~n", [Res]),
+      debug_read(File);
+    false -> []
+  end.
 
 search([{file, File}, {free_pointer, _}, {data_pointer, DataPointer}], AccountID) ->
   search(File, DataPointer, AccountID).
@@ -44,8 +46,6 @@ search(File, Offset, AccountID) ->
   end.
 
 create(FileName, Size) ->
-  % free pointer
-  % data pointer
   {ok, File} = file:open(FileName, [read, write, binary]),
 
   FreePointer = 16,
@@ -70,7 +70,7 @@ create(FileName, Size) ->
   }) end),
   [{file, File}, {free_pointer, FreePointer}, {data_pointer, DataPointer}].
 
-deleteRecord([{file, File}, {free_pointer, FreePointer} | _], Offset) ->
+delete_record([{file, File}, {free_pointer, FreePointer} | _], Offset) ->
   file:position(File, Offset),
   Info = info:read(File),
 
@@ -117,33 +117,39 @@ deleteRecord([{file, File}, {free_pointer, FreePointer} | _], Offset) ->
   file:position(File, 0),
   file:write(File, << Offset:64/integer >>).
 
-addRecord([{file, File}, {free_pointer, FreePointer}, {data_pointer, DataPointer}], Record) ->
+add_record(File, Record) ->
+  {ok, 0} = file:position(File, 0),
+  {ok, << FreePointer:64/integer >>} = file:read(File, 8),
+  {ok, << DataPointer:64/integer >>} = file:read(File, 8),
+
   case FreePointer of
     0 -> {error, no_location};
     _ ->
       file:position(File, FreePointer),
       Read = info:read(File),
       Rec = #info{
-        account = Record#info.account,
-        balance = Record#info.balance,
-        first_name = Record#info.first_name,
-        last_name = Record#info.last_name,
-        prev = DataPointer,
-        next = 0
+        account = Record#info.account, balance = Record#info.balance,
+        first_name = Record#info.first_name, last_name = Record#info.last_name,
+        prev = DataPointer, next = 0
       },
       % write Rec at FreePointer,
       file:position(File, FreePointer),
       info:write(File, Rec),
 
       % notify the new free stack top that there is no prev
-      file:position(File, Read#info.next),
-      NewTop = info:read(File),
-      file:position(File, Read#info.next),
-      info:write(File, #info{
-        prev = 0, next = NewTop#info.next,
-        account = NewTop#info.account, balance = NewTop#info.balance,
-        first_name = NewTop#info.first_name, last_name = NewTop#info.last_name
-      }),
+      case Read#info.next of
+        0 -> ok;
+        _ ->
+          file:position(File, Read#info.next),
+          NewTop = info:read(File),
+          file:position(File, Read#info.next),
+          info:write(File, #info{
+            prev = 0, next = NewTop#info.next,
+            account = NewTop#info.account, balance = NewTop#info.balance,
+            first_name = NewTop#info.first_name, last_name = NewTop#info.last_name
+          })
+      end,
+
 
       % goto Rec#info.prev and change it's next to FreePointer
       case DataPointer /= 0 of
@@ -166,5 +172,5 @@ addRecord([{file, File}, {free_pointer, FreePointer}, {data_pointer, DataPointer
       file:position(File, 0),
       file:write(File, << (Read#info.next):64/integer >>),
       file:write(File, << FreePointer:64/integer >>),
-      {ok, [{file, File}, {data_pointer, FreePointer}, {free_pointer, (Read#info.next)}]}
+      {ok, [{file, File}, {free_pointer, (Read#info.next)}, {data_pointer, FreePointer}]}
   end.

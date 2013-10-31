@@ -6,6 +6,7 @@
 -author("Mohammad El-Abid").
 -compile(export_all).
 -include("../incl/records.hrl").
+-include_lib("kernel/include/file.hrl").
 -define(FILE_NAME, "app_list.data").
 
 about() ->
@@ -27,6 +28,8 @@ options() ->
     "  * app:search().~n"
     "  * app:edit().~n"
     "  * app:delete().~n"
+    "  * app:simple_merge_sort().~n"
+    "  * simple_merge_sort:demo().~n"
     "  * app:options(). % this menu~n"
     "  * app:quit().~n"
   ), ok.
@@ -34,7 +37,7 @@ options() ->
 help() -> options().
 exit() -> quit().
 quit() -> halt().
-data_dump() -> record_list:debugRead(?FILE_NAME).
+data_dump() -> record_list:debug_read(?FILE_NAME).
 
 create_file() ->
   {ok, [Size]} = io:fread("Number of Records: ", "~d"),
@@ -61,11 +64,11 @@ create() ->
   {ok, [LastName]}  = io:fread("Last Name: ", "~s"),
 
   Options = record_list:open(?FILE_NAME),
-  Result  = record_list:addRecord(Options, #info{
+  [{file, File} | _] = Options,
+  Result  = record_list:add_record(File, #info{
     account = Account, balance = Balance,
     first_name = FirstName, last_name = LastName
   }),
-  [{file, File} | _] = Options,
   file:close(File),
   Result.
 
@@ -76,16 +79,6 @@ search() ->
   [{file, File} | _] = Options,
   file:close(File),
   Results.
-
-delete() ->
-  case search() of
-    {not_found, _} -> io:fwrite("Record not found.~n");
-    {found, Offset} ->
-      Options = record_list:open(?FILE_NAME),
-      record_list:deleteRecord(Options, Offset),
-      [{file, File} | _] = Options,
-      file:close(File)
-  end, ok.
 
 edit() ->
   case search() of
@@ -114,3 +107,21 @@ edit() ->
       info:write(File, Info),
       file:close(File)
   end, ok.
+
+delete() ->
+  case search() of
+    {not_found, _} -> io:fwrite("Record not found.~n");
+    {found, Offset} ->
+      Options = record_list:open(?FILE_NAME),
+      record_list:delete_record(Options, Offset),
+      [{file, File} | _] = Options,
+      file:close(File)
+  end, ok.
+
+simple_merge_sort() ->
+  {ok, Info} = file:read_file_info(?FILE_NAME),
+  Size = Info#file_info.size,
+  Records = round((Size - 16) / ?INFO_SIZE),
+  io:fwrite("Infered # of records as ~p~n", [Records]),
+  simple_merge_sort:merge(?FILE_NAME, Records),
+  record_list:debug_read(?FILE_NAME), ok.
