@@ -19,6 +19,14 @@ write_string(File, [Head | Tail], Length) ->
   file:write(File, << (Head):8/integer >>),
   write_string(File, Tail, Length - 1).
 
+write_string(File, String) ->
+  Length = length(String),
+  write_string(File, String, Length).
+
+load_string(File) ->
+  {ok, << Length:8/integer >>} = file:read(File, 1),
+  load_string(File, Length).
+
 %% @doc Reads a string assuming each character is 8 bits.
 load_string(_, 0) -> []; % Base case, no Length left
 load_string(File, Length) ->
