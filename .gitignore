@@ -1,10 +1,10 @@
-ebin/*
-.idea/*
+*/ebin/*
+*/.idea/*
 *.data
 *.dat
 *.eml
 *.iml
 *.a
 *.b
-erl_crash.dump
+*/erl_crash.dump
 !.gitkeep
